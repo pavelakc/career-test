@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACPAS — Тест на профориентацию</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<style>
+  :root{
+    --bg:#0c0c0c; --panel:#161616; --line:#2b2b2b;
+    --acid:#d6ff2f; --orange:#ff6a1a; --text:#f2f2f2; --muted:#9a9a9a;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:'Segoe UI',Arial,sans-serif; line-height:1.5;
+  }
+  .wrap{max-width:760px; margin:0 auto; padding:28px 18px 80px}
+  h1{
+    font-size:26px; text-transform:uppercase; letter-spacing:1px;
+    border-left:6px solid var(--acid); padding-left:14px; margin-bottom:4px;
+  }
+  .subtitle{color:var(--muted); margin-bottom:28px; font-size:14px}
+  .panel{
+    background:var(--panel); border:2px solid var(--line); padding:24px;
+    margin-bottom:18px;
+  }
+  label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px}
+  input[type=password], input[type=text], input[type=number], select, textarea{
+    width:100%; background:#0a0a0a; border:2px solid var(--line); color:var(--text);
+    padding:12px; font-size:15px; font-family:inherit;
+  }
+  textarea{resize:vertical; min-height:80px}
+  .field{margin-bottom:16px}
+  button{
+    background:var(--acid); color:#0c0c0c; border:none; font-weight:800;
+    text-transform:uppercase; letter-spacing:.5px; padding:14px 22px; font-size:14px;
+    cursor:pointer; margin-top:14px;
+  }
+  button:hover{background:var(--orange); color:#fff}
+  button:disabled{opacity:.4; cursor:not-allowed}
+  button.secondary{background:transparent; border:2px solid var(--line); color:var(--text)}
+  .progress-label{font-size:12px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between}
+  .progress-bar{height:8px; background:var(--line); margin-bottom:24px; position:relative}
+  .progress-fill{height:100%; background:var(--acid); transition:width .4s}
+  .q-block{margin-bottom:26px; padding-bottom:22px; border-bottom:1px solid var(--line)}
+  .q-block:last-child{border-bottom:none}
+  .q-text{font-size:16px; margin-bottom:12px; font-weight:600}
+  .opt{
+    display:block; border:2px solid var(--line); padding:10px 14px; margin-bottom:8px;
+    cursor:pointer; font-size:14px;
+  }
+  .opt input{margin-right:10px}
+  .opt.checked{border-color:var(--acid); background:#1c1f0a}
+  .scale-row{display:flex; align-items:center; gap:10px}
+  .scale-row span{font-size:12px; color:var(--muted); width:90px}
+  .scale-row span:last-child{text-align:right}
+  input[type=range]{flex:1; accent-color:var(--acid)}
+  .scenario-tag{
+    display:inline-block; font-size:10px; text-transform:uppercase; color:var(--orange);
+    border:1px solid var(--orange); padding:2px 8px; margin-bottom:8px; letter-spacing:1px;
+  }
+  .error{border:2px solid var(--orange); color:var(--orange); padding:14px; margin-bottom:18px; font-size:14px}
+  .loading{color:var(--muted); font-style:italic}
+  .report h1,.report h2,.report h3{color:var(--acid); border:none; padding:0; letter-spacing:0}
+  .report h1{font-size:22px; margin-top:0}
+  .report h2{font-size:18px; margin-top:28px}
+  .report table{width:100%; border-collapse:collapse; margin:14px 0}
+  .report th,.report td{border:1px solid var(--line); padding:8px; font-size:13px; text-align:left}
+  .report{font-size:15px}
+  .topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px}
+  .small-note{font-size:12px; color:var(--muted); margin-top:10px}
+  a{color:var(--acid)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <h1>ACPAS</h1>
+    <button class="secondary" id="resetBtn" style="margin:0; padding:8px 14px; font-size:11px">Сбросить</button>
+  </div>
+  <div class="subtitle">AI Career Architect — тест на профориентацию для школьников и взрослых</div>
+  <div id="app"></div>
+</div>
+
+<script>
+const API_URL = 'https://api.anthropic.com/v1/messages';
+const MODEL = 'claude-sonnet-5';
+const MAX_QUESTIONS = 55;
+
+function buildInterviewSystem(profile){
+  const isMinor = profile.age && profile.age < 18;
+  const ageBlock = isMinor
+    ? `Пользователю ${profile.age} лет, статус: ${profile.statusLabel}. Это несовершеннолетний. ОБЯЗАТЕЛЬНО соблюдай:
+- Простой, дружелюбный, живой язык без канцелярита и без взрослого делового жаргона.
+- Ситуационные кейсы бери из школьной/подростковой жизни: групповой проект, кружок, спорт, помощь другу, олимпиада, конфликт в компании друзей — НЕ из "увольнения сотрудников" или "банкротства компании".
+- Не задавай вопросов про финансовые риски, работу, деньги как основную тему — только вскользь.
+- Не копай в семейные проблемы, травмы, тревожные темы — фокус только на интересах, увлечениях, сильных сторонах, учебных предметах, кружках, мечтах о будущем.
+- Тон — как у доброго наставника, а не как у психолога-клинициста.`
+    : `Пользователю ${profile.age || 'неизвестно'} лет, статус: ${profile.statusLabel}. Текущая сфера деятельности (со слов пользователя): "${profile.field || 'не указана'}".
+Это взрослый человек. ВАЖНО — не подгоняй все ситуационные кейсы ("scenario") под типовой офисный/корпоративный менеджмент по умолчанию. Учитывай реальную сферу пользователя:
+- Если сфера не указана или размыта — в первых 3-5 вопросах интервью аккуратно выясни, чем именно человек занимается (наёмный физический труд, ремесло/мастерская, собственный небольшой бизнес, офисная работа, творческая профессия, сфера услуг, медицина, образование, фриланс, домашнее хозяйство, поиск работы и т.д.), и только потом переходи к остальным вопросам.
+- Дальше строй ситуационные кейсы вокруг РЕАЛЬНОГО контекста этой сферы. Например, для мастера/наёмного рабочего — диагностика неисправности на объекте, сложный клиент на вызове, ценообразование за работу, конфликт с бригадиром, нехватка запчастей под дедлайн — а не "увольнение подчинённого" или "переговоры с советом директоров". Для творческой профессии — кейсы про заказчика, который просит правки в последний момент, конкуренцию идей, дедлайн проекта. Для сферы услуг — сложный клиент, пиковая нагрузка, конфликт с коллегой на смене. Подбирай кейсы под конкретику, а не общий "менеджерский" шаблон, если только сам человек не работает менеджером/руководителем.
+- Вопросы про лидерство, финансовое и техническое мышление всё равно уместны для любой сферы — просто формулируй их через понятный человеку контекст (например, "лидерство" может проявляться в бригаде из 2-3 человек так же, как в отделе из 30).`;
+
+  return `Ты — ACPAS, ИИ-система профориентационной диагностики уровня международного Assessment Center (сочетание подходов Big Five, Holland RIASEC, DISC, Gallup CliftonStrengths, эмоционального интеллекта, теории самоопределения), адаптированная и для детей, и для взрослых.
+
+${ageBlock}
+
+Тебе передают JSON-массив уже заданных вопросов и ответов пользователя: [{"question":"...","answer":"..."}, ...].
+
+Твоя задача — вернуть СЛЕДУЮЩИЙ блок из 3-4 адаптивных вопросов, учитывая уже известное о человеке.
+
+Правила:
+- Затрагивай по очереди: черты личности, профессиональные интересы (RIASEC), стиль поведения, сильные стороны и таланты, мотивацию, ценности, отношение к риску, лидерство, работу в команде vs в одиночку, аналитическое/техническое/творческое мышление, эмоциональную регуляцию, реакцию на неудачи — всё в возрастно-уместной форме.
+- Используй разные типы вопросов: "single" (выбор одного варианта из 3-5), "scale" (шкала 1-7 с подписанными полюсами), "open" (открытый вопрос), "scenario" (короткий кейс с открытым ответом, проверяющий стиль принятия решений).
+- Не повторяй уже затронутые темы буквально, двигайся вглубь.
+- Каждые 15-20 вопросов включай один контрольный вопрос — переформулированную версию более раннего, чтобы проверить согласованность ответов. Не сообщай об этом пользователю.
+- Когда суммарно задано уже достаточно вопросов (обычно 40-55) и профиль по ключевым параметрам ясен — верни "done": true и пустой массив "questions".
+- Никогда не задавай больше 4 вопросов за раз.
+- Отвечай СТРОГО в формате JSON, без markdown-разметки, без пояснений до или после:
+{"done": false, "progress": 40, "questions": [
+  {"id":"q17","type":"single","text":"...","options":["...","...","..."]},
+  {"id":"q18","type":"scale","text":"...","left":"...","right":"..."},
+  {"id":"q19","type":"open","text":"..."},
+  {"id":"q20","type":"scenario","text":"..."}
+]}
+- "progress" — целое число 0-100, твоя оценка прогресса интервью.
+- Для "single" обязательно поле "options" (3-5 коротких строк).
+- Для "scale" обязательны поля "left" и "right" — подписи полюсов шкалы 1-7.
+- Для "open" и "scenario" дополнительных полей не нужно.`;
+}
+
+function buildReportSystem(profile){
+  const isMinor = profile.age && profile.age < 18;
+  const minorBlock = isMinor
+    ? `Пользователю ${profile.age} лет (школьник/подросток). Отчёт должен:
+- Быть написан простым, тёплым, вдохновляющим языком, без канцелярита и без клинических формулировок.
+- Фокусироваться на интересах, сильных сторонах, школьных предметах, которые стоит углублённо изучать, кружках/секциях, направлениях допобразования.
+- Вместо "профессии, которых стоит избегать" — использовать формулировку "куда пока не обязательно спешить, можно вернуться к этому позже".
+- Вместо точного прогноза зарплаты — общими словами про перспективность направлений.
+- Явно порекомендовать обсудить результаты с родителями/учителем/школьным психологом и воспринимать их как отправную точку для исследования, а не как готовое решение.
+- Не давать никаких клинических или диагностических формулировок.`
+    : `Пользователю ${profile.age || 'взрослый человек'} лет, статус: ${profile.statusLabel}. Текущая сфера деятельности: "${profile.field || 'не указана'}". Отчёт для взрослого — используй полноценный деловой формат с прогнозом дохода, картой компетенций и т.д., но НЕ предполагай по умолчанию офисную/корпоративную карьеру. Рекомендации по направлениям должны учитывать весь спектр вариантов: рабочие профессии и ремёсла, собственное дело/масштабирование текущего бизнеса, узкая техническая специализация, переход в смежную сферу, обучение и сертификация в своей же отрасли — а не только "менеджер" или "офисный специалист". Если человек уже успешен в своей текущей сфере (например, много лет опыта, собственное дело) — рассматривай в первую очередь пути роста и масштабирования внутри неё, а не смену профессии, если только его ответы явно не указывают на желание сменить сферу.`;
+
+  return `Ты — ACPAS, эксперт по профориентационной диагностике. На основе полной истории вопросов и ответов пользователя составь итоговый отчёт на русском языке в формате Markdown.
+
+${minorBlock}
+
+Структура отчёта:
+1. Executive Summary (короткое резюме личности и главный вывод)
+2. Психологический профиль (кратко: черты личности, тип по RIASEC, стиль поведения, ключевые мотиваторы)
+3. Ключевые сильные стороны — с конкретными примерами из ответов пользователя
+4. Зоны роста — конструктивно, без ярлыков и без клинических диагнозов
+5. Топ-5 наиболее подходящих направлений/профессий (для школьника — можно в формате "направления и школьные предметы, на которые стоит опираться") — для каждого укажи оценочную "вероятность интереса/успеха" в % (явно указывая, что это экспертная, а не статистическая оценка) и краткое обоснование
+6. Направления, к которым стоит вернуться позже, и почему
+7. Прогноз развития: сценарий "если ничего не менять" и сценарий "при целенаправленном развитии" на горизонте 3/5/10 лет
+8. Дорожная карта: 6 месяцев / 1 год / 3 года — конкретные шаги, навыки, предметы, практика
+9. Финальная рекомендация: если бы нужно было выбрать одно направление для старта — назови его с аргументацией, затем 3 альтернативы с плюсами и минусами относительно основного выбора
+
+Каждый ключевой вывод сопровождай указанием уровня уверенности в скобках (низкая/средняя/высокая). Пиши тепло, конкретно и по существу, без воды. Используй markdown-таблицы там, где уместно (например, для рейтинга направлений).`;
+}
+
+let state = load() || {
+  stage: 'setup',
+  apiKey: '',
+  profile: { age: null, statusLabel: '', field: '' },
+  history: [],
+  currentBatch: [],
+  answers: {},
+  progress: 0,
+  report: '',
+  error: ''
+};
+
+function save(){ localStorage.setItem('acpas_state', JSON.stringify(state)); }
+function load(){ try{ return JSON.parse(localStorage.getItem('acpas_state')); }catch(e){ return null; } }
+
+async function callClaude(system, userContent, maxTokens){
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': state.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: maxTokens,
+      system: system,
+      messages: [{ role: 'user', content: userContent }]
+    })
+  });
+  if(!res.ok){
+    const t = await res.text();
+    throw new Error('API ошибка ' + res.status + ': ' + t.slice(0,300));
+  }
+  const data = await res.json();
+  return data.content.map(b => b.text || '').join('\n');
+}
+
+function extractJSON(raw){
+  let s = raw.trim();
+  s = s.replace(/^```(json)?/i,'').replace(/```$/,'').trim();
+  const start = s.indexOf('{');
+  const end = s.lastIndexOf('}');
+  if(start >= 0 && end > start) s = s.slice(start, end+1);
+  return JSON.parse(s);
+}
+
+async function fetchNextBatch(){
+  state.stage = 'loading';
+  state.error = '';
+  render();
+  try{
+    const historyForModel = state.history.map(h => ({question: h.text, answer: h.answer}));
+    const raw = await callClaude(buildInterviewSystem(state.profile), JSON.stringify(historyForModel), 2000);
+    const parsed = extractJSON(raw);
+    state.progress = parsed.progress ?? Math.min(100, Math.round(state.history.length / MAX_QUESTIONS * 100));
+    if(parsed.done || !parsed.questions || parsed.questions.length === 0 || state.history.length >= MAX_QUESTIONS){
+      state.stage = 'generating_report';
+      render();
+      await generateReport();
+      return;
+    }
+    state.currentBatch = parsed.questions;
+    state.answers = {};
+    state.stage = 'interview';
+  }catch(e){
+    state.error = 'Не удалось получить следующий блок вопросов. ' + e.message;
+    state.stage = 'interview_error';
+  }
+  save();
+  render();
+}
+
+async function generateReport(){
+  try{
+    const raw = await callClaude(buildReportSystem(state.profile), JSON.stringify(state.history), 7000);
+    state.report = raw;
+    state.stage = 'report';
+  }catch(e){
+    state.error = 'Не удалось сгенерировать отчёт. ' + e.message;
+    state.stage = 'report_error';
+  }
+  save();
+  render();
+}
+
+function submitBatch(){
+  for(const q of state.currentBatch){
+    const ans = state.answers[q.id];
+    if(ans === undefined || ans === '' || ans === null){
+      alert('Пожалуйста, ответьте на все вопросы блока.');
+      return;
+    }
+  }
+  for(const q of state.currentBatch){
+    state.history.push({ id: q.id, text: q.text, type: q.type, answer: state.answers[q.id] });
+  }
+  state.currentBatch = [];
+  save();
+  fetchNextBatch();
+}
+
+function toggleFieldInput(){
+  const status = document.getElementById('statusInput').value;
+  document.getElementById('fieldWrap').style.display = (status === 'working' || status === 'other') ? 'block' : 'none';
+}
+
+function goToProfile(){
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if(!key){ alert('Введите API-ключ Anthropic.'); return; }
+  state.apiKey = key;
+  state.stage = 'profile';
+  save();
+  render();
+}
+
+function startInterview(){
+  const age = parseInt(document.getElementById('ageInput').value, 10);
+  const statusSel = document.getElementById('statusInput');
+  const statusLabel = statusSel.options[statusSel.selectedIndex].text;
+  const fieldEl = document.getElementById('fieldInput');
+  const field = fieldEl ? fieldEl.value.trim() : '';
+  if(!age || age < 6 || age > 100){ alert('Укажите корректный возраст.'); return; }
+  state.profile = { age, statusLabel, field };
+  state.stage = 'interview';
+  save();
+  fetchNextBatch();
+}
+
+function resetAll(){
+  if(!confirm('Точно сбросить весь прогресс теста?')) return;
+  localStorage.removeItem('acpas_state');
+  state = { stage:'setup', apiKey:'', profile:{age:null,statusLabel:'',field:''}, history:[], currentBatch:[], answers:{}, progress:0, report:'', error:'' };
+  render();
+}
+document.getElementById('resetBtn').addEventListener('click', resetAll);
+
+function renderQuestion(q){
+  let inner = '';
+  if(q.type === 'single'){
+    inner = q.options.map((opt,i) => `
+      <label class="opt ${state.answers[q.id]===opt?'checked':''}">
+        <input type="radio" name="${q.id}" value="${escapeAttr(opt)}" ${state.answers[q.id]===opt?'checked':''} onchange="setAnswer('${q.id}', this.value)">
+        ${escapeHtml(opt)}
+      </label>`).join('');
+  } else if(q.type === 'scale'){
+    const val = state.answers[q.id] ?? 4;
+    inner = `
+      <div class="scale-row">
+        <span>${escapeHtml(q.left||'')}</span>
+        <input type="range" min="1" max="7" step="1" value="${val}" oninput="setAnswer('${q.id}', this.value); document.getElementById('val_${q.id}').textContent=this.value">
+        <span>${escapeHtml(q.right||'')}</span>
+      </div>
+      <div style="text-align:center; margin-top:6px; color:var(--acid); font-weight:700" id="val_${q.id}">${val}</div>`;
+    if(state.answers[q.id] === undefined) setAnswer(q.id, val, true);
+  } else {
+    inner = `<textarea placeholder="Ваш ответ..." oninput="setAnswer('${q.id}', this.value)">${escapeHtml(state.answers[q.id]||'')}</textarea>`;
+  }
+  return `<div class="q-block">
+    ${q.type==='scenario' ? '<span class="scenario-tag">Кейс</span><br>' : ''}
+    <div class="q-text">${escapeHtml(q.text)}</div>
+    ${inner}
+  </div>`;
+}
+
+function setAnswer(id, val, silent){
+  state.answers[id] = val;
+  if(!silent) save();
+}
+
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s); }
+
+function render(){
+  const app = document.getElementById('app');
+  let html = '';
+
+  if(state.error){
+    html += `<div class="error">${escapeHtml(state.error)}</div>`;
+  }
+
+  if(state.stage === 'setup'){
+    html += `
+      <div class="panel">
+        <p>Тест подходит и школьникам, и взрослым — вопросы и итоговый отчёт автоматически адаптируются под возраст.</p>
+        <div class="field">
+          <label>API-ключ Anthropic</label>
+          <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
+        </div>
+        <div class="small-note">Ключ хранится только в вашем браузере (localStorage) и отправляется напрямую на api.anthropic.com — никуда больше.</div>
+        <button onclick="goToProfile()">Далее</button>
+      </div>`;
+  }
+
+  if(state.stage === 'profile'){
+    html += `
+      <div class="panel">
+        <p>Пара вопросов перед стартом — они нужны, чтобы правильно подобрать язык и примеры вопросов.</p>
+        <div class="field">
+          <label>Возраст</label>
+          <input type="number" id="ageInput" min="6" max="100" placeholder="Например, 15">
+        </div>
+        <div class="field">
+          <label>Чем занимаетесь сейчас</label>
+          <select id="statusInput" onchange="toggleFieldInput()">
+            <option value="school">Учусь в школе</option>
+            <option value="college">Учусь в колледже/университете</option>
+            <option value="working">Работаю</option>
+            <option value="other">Другое</option>
+          </select>
+        </div>
+        <div class="field" id="fieldWrap" style="display:none">
+          <label>Основная сфера деятельности / профессия</label>
+          <textarea id="fieldInput" placeholder="Например: мастер по ремонту бытовой техники, продавец, водитель, менеджер по продажам, дизайнер-фрилансер, домохозяйка, ищу работу..."></textarea>
+          <div class="small-note">Своими словами — так вопросы и кейсы будут ближе к вашей реальной работе, а не к типовому офису.</div>
+        </div>
+        <button onclick="startInterview()">Начать тест</button>
+      </div>`;
+  }
+
+  if(state.stage === 'loading'){
+    const pct = state.progress || 0;
+    const answered = state.history.length;
+    html += `<div class="progress-label">Прогресс: ${pct}% · отвечено вопросов: ${answered} (примерно из ${MAX_QUESTIONS})</div>`;
+    html += `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>`;
+    html += `<div class="panel loading">Подбираю следующий блок вопросов...</div>`;
+  }
+
+  if(state.stage === 'generating_report'){
+    html += `<div class="panel loading">Интервью завершено. Формирую итоговый отчёт — это может занять около минуты...</div>`;
+  }
+
+  if(state.stage === 'interview' || state.stage === 'interview_error'){
+    const pct = state.progress || 0;
+    const answered = state.history.length;
+    html += `<div class="progress-label">Прогресс: ${pct}% · отвечено вопросов: ${answered} (примерно из ${MAX_QUESTIONS})</div>`;
+    html += `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>`;
+    html += `<div class="panel">`;
+    if(state.currentBatch.length){
+      html += state.currentBatch.map(renderQuestion).join('');
+      html += `<button onclick="submitBatch()">Ответить и продолжить</button>`;
+    } else {
+      html += `<button onclick="fetchNextBatch()">Повторить запрос</button>`;
+    }
+    html += `</div>`;
+  }
+
+  if(state.stage === 'report_error'){
+    html += `<div class="panel"><button onclick="generateReport()">Повторить генерацию отчёта</button></div>`;
+  }
+
+  if(state.stage === 'report'){
+    html += `<div class="panel report">${marked.parse(state.report)}</div>
+      <button class="secondary" onclick="window.print()">Распечатать / сохранить как PDF</button>`;
+  }
+
+  app.innerHTML = html;
+}
+
+render();
+</script>
+</body>
+</html>
